@@ -27,7 +27,22 @@ class Fan(PddfFan):
             depending on fan direction
         """
         if self.is_psu_fan:
-            direction = self.FAN_DIRECTION_EXHAUST
+            status = 0
+            device = "PSU{}".format(self.fans_psu_index)
+            output = self.pddf_obj.get_attr_name_output(device, "psu_fan_dir")
+            if not output:
+                return False
+
+            mode = output['mode']
+            val = output['status']
+
+            val = val.rstrip()
+            vmap = self.plugin_data['PSU']['psu_fan_dir'][mode]['valmap']
+
+            if val in vmap:
+                direction = vmap[val]
+            else:
+                direction = val
 
         else:
             idx = (self.fantray_index-1)*self.platform['num_fans_pertray'] + self.fan_index
