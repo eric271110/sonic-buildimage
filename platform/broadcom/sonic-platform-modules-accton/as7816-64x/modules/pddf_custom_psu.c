@@ -359,69 +359,38 @@ ssize_t pddf_get_custom_psu_fan_direction(struct device *dev, struct device_attr
     int status, length;
     u8 data_len, command;
 
-    memset(data.model_name, 0, sizeof(data.model_name));
-
-    /* Read model_name */
-    command = 0x9a;
-    length  = 1;
-    /* Read first byte to determine the length of data */
-    status = pddf_psu_read_block(client, command, &data_len, length);
-    if (status < 0) 
-    {
-        dev_dbg(&client->dev, "reg %d, err %d\n", command, status);
-        return status;
-    }
-    status = pddf_psu_read_block(client, command, data.model_name, data_len+1);
-    if (status < 0) 
-    {
-        dev_dbg(&client->dev, "reg %d, err %d\n", command, status);
-        return status;
-    }
-
-    if ((data_len+1) >= (ARRAY_SIZE(data.model_name)-1))
-    {            
-        data.model_name[ARRAY_SIZE(data.model_name)-1] = '\0';
-    }
-    else
-        data.model_name[data_len+1] = '\0';
 
     /* Read fan direction */
     command = 0xC3;
     memset(data.fan_dir, 0, sizeof(data.fan_dir));
-    if (!strncmp("G1441-0850WNB", data.model_name+1, strlen("G1441-0850WNB")) ){
-       memcpy(data.fan_dir, "F2B", 3);
-    }
-    else
-    {
 
         status = pddf_psu_read_byte(client, command);
 
-        if (status < 0)
+    if (status < 0)
+    {
+        dev_dbg(&client->dev, "reg %d, err %d\n", command, status);
+        return status;
+    }
+    else
+    {
+        u16 B2F_flag = 0x01; /*BIT[4:3]=01: AFI*/
+        u16 F2B_flag = 0x02; /*BIT[4:3]=10: AFO*/
+        if( (status >> 3)& B2F_flag)
         {
-            dev_dbg(&client->dev, "reg %d, err %d\n", command, status);
-            return status;
+            memcpy(data.fan_dir, "B2F", 3);
+        }
+        else if( (status >> 3)& F2B_flag)
+        {
+            memcpy(data.fan_dir, "F2B", 3);
         }
         else
         {
-            u16 B2F_flag = 0x01; /*BIT[4:3]=01: AFI*/
-            u16 F2B_flag = 0x02; /*BIT[4:3]=10: AFO*/
-            if( (status >> 3)& B2F_flag)
+            char fan_dir[5];
+            status = pddf_psu_read_block(client, command, fan_dir, ARRAY_SIZE(fan_dir)-1);
+            if (status == 0) 
             {
-                memcpy(data.fan_dir, "B2F", 3);
-            }
-            else if( (status >> 3)& F2B_flag)
-            {
-                memcpy(data.fan_dir, "F2B", 3);
-            }
-            else
-            {
-                char fan_dir[5];
-                status = pddf_psu_read_block(client, command, fan_dir, ARRAY_SIZE(fan_dir)-1);
-                if (status == 0) 
-                {
-                    strncpy(data.fan_dir, fan_dir+1, ARRAY_SIZE(data.fan_dir)-1);
-                    data.fan_dir[ARRAY_SIZE(data.fan_dir)-1] = '\0';
-                }
+                strncpy(data.fan_dir, fan_dir+1, ARRAY_SIZE(data.fan_dir)-1);
+                data.fan_dir[ARRAY_SIZE(data.fan_dir)-1] = '\0';
             }
         }
     }
